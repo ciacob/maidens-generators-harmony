@@ -45,7 +45,7 @@ package ro.ciacob.maidens.generators.harmony.analyzers {
 		 * @see IMusicalContentAnalyzer.weight
 		 */
 		override public function get weight () : Number {
-			return 0.8;
+			return 0.7;
 		}
 		
 		/**
@@ -98,7 +98,6 @@ package ro.ciacob.maidens.generators.harmony.analyzers {
 				var rawDelta : int = (rawScore - _minPossibleScore);
 				var refDelta : int = (_maxPossibleScore - _minPossibleScore);
 				var score : Number = (rawDelta / refDelta);
-				score *= weight;
 				score = Math.max (ParameterCommons.MIN_LEGAL_SCORE, Math.round (score * 100));
 				targetMusicUnit.analysisScores.add (ParameterNames.CHORD_PROGRESSION, score);
 			}

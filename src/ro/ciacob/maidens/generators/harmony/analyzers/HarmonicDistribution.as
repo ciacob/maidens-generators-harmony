@@ -35,7 +35,7 @@ import ro.ciacob.utils.NumberUtil;
 		 * @see IMusicalContentAnalyzer.weight
 		 */
 		override public function get weight () : Number {
-			return 0.9;
+			return 0.65;
 		}
 
 		/**
@@ -68,7 +68,6 @@ import ro.ciacob.utils.NumberUtil;
 
 			// Expresses the score as a percent, in relation to already computed gamut
 			var score : Number = _transposeScore (rawScore, gamut);
-			score *= weight;
 			score = Math.round (score * 100);
 
 			// Save the score, as a 1-100 integer
