@@ -69,7 +69,6 @@ public class RandomChord extends AbstractRawMusicSource implements IRawMusicSour
             if (!_isShallowChord(proposedChord)) {
                 break;
             }
-            trace ('REJECTED chord', proposedChord, 'as shallow.');
         }
         payload.push(proposedChord);
         return payload;
