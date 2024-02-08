@@ -1,11 +1,11 @@
 package ro.ciacob.maidens.generators.harmony.sources {
 import eu.claudius.iacob.music.knowledge.instruments.interfaces.IMusicalInstrument;
 
-import ro.ciacob.maidens.generators.constants.pitch.IntervalsSize;
+import flash.system.System;
 
+import ro.ciacob.maidens.generators.constants.pitch.IntervalsSize;
 import ro.ciacob.maidens.generators.core.MusicPitch;
 import ro.ciacob.maidens.generators.core.MusicUnit;
-import ro.ciacob.maidens.generators.core.MusicalBody;
 import ro.ciacob.maidens.generators.core.PitchAllocation;
 import ro.ciacob.maidens.generators.core.abstracts.AbstractRawMusicSource;
 import ro.ciacob.maidens.generators.core.constants.CoreOperationKeys;
@@ -21,6 +21,7 @@ import ro.ciacob.maidens.generators.core.interfaces.IRawMusicSource;
 import ro.ciacob.maidens.generators.core.interfaces.ISettingsList;
 import ro.ciacob.maidens.generators.harmony.constants.ParameterNames;
 import ro.ciacob.utils.Arrays;
+import ro.ciacob.utils.Objects;
 
 /**
  * Concrete IMusicalPrimitiveSource implementation that outputs one unique random chord
@@ -28,19 +29,28 @@ import ro.ciacob.utils.Arrays;
  */
 public class RandomChord extends AbstractRawMusicSource implements IRawMusicSource {
 
-    private static const REFERENCE_NUM_MIN_INTERVALS : int = 2;
-
-    // Class lifetime cache for the `_getTotalNumVoices()` function
-    private var _totalNumVoices:int;
+    private static const REFERENCE_NUM_MIN_INTERVALS:int = 2;
 
     // Class lifetime cache for the `_getAverageMiddleRange()` function
     private var _averageMiddleRange:Vector.<int>;
 
-    // Class lifetime cache  for the `_getHighestAvailablePitch()` function
+    // Storage for the value of the "VOICES_NUMBER" parameter.
+    private var _totalNumVoices:int;
+
+    // Storage for the value of the "HIGHEST_PITCH" parameter.
     private var _highestAvailablePitch:int;
 
-    // Class lifetime cache for the `_getLowestAvailablePitch()` function
+    // Storage for the value of the "LOWEST_PITCH" parameter.
     private var _lowestAvailablePitch:int;
+
+    // Storage for the value of the "INTRINSIC_CONSONANCE" parameter.
+    private var _currentConsonance:int;
+
+    // Storage for the value of the "ENFORCE_CONSONANCE" parameter.
+    private var _enforceConsonance : Boolean;
+
+    // Storage for rejected proposed chords to spare evaluating again.
+    private var _rejectedChords:Object;
 
     /**
      * @constructor
@@ -60,18 +70,66 @@ public class RandomChord extends AbstractRawMusicSource implements IRawMusicSour
                                     parameters:IParametersList,
                                     request:IMusicRequest):Vector.<IMusicUnit> {
 
+        // Reset the storage for rejeccted chords, as parameters may change from chord to chord and, what was not
+        // acceptable one chord ago may now be desirable.
+        _rejectedChords = {};
+
+        // Force garbage collection before generating every chord. If there is less to collect, it takes less time to
+        // do it.
+        System.pauseForGCIfCollectionImminent(0.0001);
+
         // Build and return one unique and not shallow random chord. It needs to be returned inside a Vector
         // for consistency with the Interface we are implementing.
         var payload:Vector.<IMusicUnit> = new Vector.<IMusicUnit>;
         var proposedChord:IMusicUnit;
-        while ((proposedChord = _generateChord(targetMusicUnit, analysisContext,
-                parameters, request))) {
-            if (!_isShallowChord(proposedChord)) {
-                break;
+        var signature:String;
+        // var isConsonanceAcceptable : Boolean;
+        var isDepthAcceptable : Boolean;
+        _currentConsonance = _getCurrentConsonance(analysisContext, parameters, request);
+        _enforceConsonance = _getEnforceConsonance(parameters, request);
+        while ((proposedChord = _generateChord(targetMusicUnit, analysisContext, parameters, request))) {
+            signature = proposedChord.pitches.toString();
+            if (!_rejectedChords[signature]) {
+                isDepthAcceptable = !_isShallowChord(proposedChord);
+                if (isDepthAcceptable) {
+                    break;
+                } else {
+                    _rejectedChords[signature] = true;
+                }
+            } else {
+                // Used for debug.
             }
         }
         payload.push(proposedChord);
         return payload;
+    }
+
+    /**
+     * Retrieves the current value of the "Intrinsic Consonance" parameter, as a Number between "0" and "1".
+     * @param analysisContext
+     * @param parameters
+     * @param request
+     * @return
+     */
+    private function _getCurrentConsonance(analysisContext:IAnalysisContext,
+                                           parameters:IParametersList,
+                                           request:IMusicRequest):uint {
+        var percentTime:int = Math.round(analysisContext.percentTime * 100);
+        var consonanceParam:IParameter = parameters.getByName(ParameterNames.INTRINSIC_CONSONANCE)[0];
+        return (request.userSettings.getValueAt(consonanceParam, percentTime) as uint);
+    }
+
+    /**
+     * Retrieves the value of the "Enforce Consonance" parameter, as a Boolean.
+     * @param analysisContext
+     * @param parameters
+     * @param request
+     * @return
+     */
+    private function _getEnforceConsonance(parameters:IParametersList,
+                                           request:IMusicRequest):Boolean {
+        var enforceConsonanceParam : IParameter = parameters.getByName(ParameterNames.ENFORCE_CONSONANCE)[0];
+        return (request.userSettings.getValueAt(enforceConsonanceParam, 0) === 1);
     }
 
     /**
@@ -156,8 +214,8 @@ public class RandomChord extends AbstractRawMusicSource implements IRawMusicSour
             var instLowest:int = instrument.midiRange[0];
             var instrumentZones:Array = rangeZonesClone.splice(0, instNumVoices);
 
-            instrumentZones.forEach(function (zone:Array, voiceIndex:int, ...etc):void {
-                var spliceArgs:Array = zone.filter(function (midiPitch:int, ...etc):Boolean {
+            instrumentZones.forEach(function forEachZone(zone:Array, voiceIndex:int, ...etc):void {
+                var spliceArgs:Array = zone.filter(function filterByMidiPitch(midiPitch:int, ...etc):Boolean {
                     return (midiPitch >= instLowest && midiPitch <= instHighest);
                 });
                 spliceArgs.unshift(zone.length);
@@ -196,9 +254,8 @@ public class RandomChord extends AbstractRawMusicSource implements IRawMusicSour
             }
         }
 
-        // Randomly pick a MIDI value from each eligible zone. Use the reserved MIDI pitch `0` for
-        // non eligible zones. When rendering to score, all `0` MIDI pitches will be translated to
-        // rests.
+        // Pick a MIDI value from each eligible zone. Use the reserved MIDI pitch `0` for non eligible zones. When
+        // rendering to score, all `0` MIDI pitches will be translated to rests.
         // We transfer chosen pitches to a MusicUnit (as this is the standardized vehicle we use to carry any type
         // of information).
         //
@@ -210,10 +267,12 @@ public class RandomChord extends AbstractRawMusicSource implements IRawMusicSour
         var tmpMusicUnit:IMusicUnit = new MusicUnit;
         var tmpPitches:Vector.<IMusicPitch> = tmpMusicUnit.pitches;
         var tmpAllocations:Vector.<IPitchAllocation> = tmpMusicUnit.pitchAllocations;
-        zonesToUse.forEach(function (zone:Array, ...etc):void {
+        zonesToUse.forEach(function forEachZoneToUse(zone:Array, ...etc):void {
             var pitch:IMusicPitch = new MusicPitch;
             if (zone.length > 0) {
-                pitch.midiNote = (Arrays.getRandomItem(zone) as int);
+                pitch.midiNote = _enforceConsonance?
+                        CommonMusicUtils.findSuitablePitch(zone, tmpPitches, _currentConsonance):
+                        (Arrays.getRandomItem(zone) as int);
             } else {
                 pitch.midiNote = 0;
             }
@@ -256,8 +315,8 @@ public class RandomChord extends AbstractRawMusicSource implements IRawMusicSour
      * @return  True if the chord is shallow, false otherwise.
      */
     private function _isShallowChord(chord:IMusicUnit):Boolean {
-        var pitches : Vector.<IMusicPitch> = chord.pitches;
-        var numPitches : uint = pitches.filter (function (pitch : IMusicPitch, ...etc) : Boolean {
+        var pitches:Vector.<IMusicPitch> = chord.pitches;
+        var numPitches:uint = pitches.filter(function filterPitchesToCount(pitch:IMusicPitch, ...etc):Boolean {
             return pitch != 0
         }).length;
 
@@ -271,8 +330,8 @@ public class RandomChord extends AbstractRawMusicSource implements IRawMusicSour
         // The chord is "shallow" (thus, "invalid") if its number of unique simple intervals observed against
         // the bass (not counting primes) is less than the minimum accepted number of unique intervals in a chord.
         var intervalsAgainstBass:Array = _getIntervalsAgainstBass(pitches, true, true);
-        var minAcceptedNumIntervals : int = Math.min (numPitches - 1, REFERENCE_NUM_MIN_INTERVALS);
-        var isChordShallow : Boolean = (intervalsAgainstBass.length < minAcceptedNumIntervals);
+        var minAcceptedNumIntervals:int = Math.min(numPitches - 1, REFERENCE_NUM_MIN_INTERVALS);
+        var isChordShallow:Boolean = (intervalsAgainstBass.length < minAcceptedNumIntervals);
         return isChordShallow;
     }
 
@@ -308,7 +367,7 @@ public class RandomChord extends AbstractRawMusicSource implements IRawMusicSour
         var interval:int;
         for (i = 0; i < rawMidiValues.length; i++) {
             currNote = (rawMidiValues[i] as int);
-            interval = Math.abs (bassNote - currNote);
+            interval = Math.abs(bassNote - currNote);
             if (decomposeIntervals) {
                 interval = (interval % IntervalsSize.PERFECT_OCTAVE);
             }
@@ -316,7 +375,7 @@ public class RandomChord extends AbstractRawMusicSource implements IRawMusicSour
                 continue;
             }
             if (intervals.indexOf(interval) == -1) {
-                intervals.push (interval);
+                intervals.push(interval);
             }
         }
         return intervals;

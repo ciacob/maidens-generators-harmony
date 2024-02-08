@@ -1,0 +1,10 @@
+- [DONE] - make `rawChords` initially empty;
+- [DONE] make `rawSource.output()` only return ONE music unit;
+- [DONE] add new code to VALIDATE returned music unit: specifically, ANALYSE it, and only retain it when ALL the scores are within an acceptable threshold; if the returned music unit is valid, add it to rawChords; otherwise, generate a new one, and repeat.
+- [DONE] if unsuccessfull, TRY as many times as the product value of HETEROGENITY and ANALISIS_WINDOW allows you.
+- [DONE] if successfull, keep adding music units to `rawChords` until you get one that hits the maximum value on all scores, or until you have gathered as many as the value of ANALISIS_WINDOW permits (at least one value);
+- [DONE] if, after trying `HETEROGENITY by ANALISIS_WINDOW` times to gather valid music units, the `rawChords` Vector is still empty, we lower the threshold proprotionally to its current value and repeat the process.
+
+- rejected music units are cached, both in their absolute and relative signature, so that if drawn again, they are rejected upfront, whithout any further validation. By "relative signature", I mean the difference in semitones from the bass, expressed in ordered succession, from bottom up.
+- validated music units are cached as well: if `rawChords` comes out empty after first round of tries, the cache of previously found valid music units is used as source instead for an interim round of validation (these music units are to be revalidated, because context has likely changed. Simple transforms can be used on music units in this cache, such as inversion or transposition to broaden the array of choices. It is advisable to produce all chord inversions and 6 random transpositions, 3 upward and one downward upon each caching operation (the very moment the chord is added to the cache).
+

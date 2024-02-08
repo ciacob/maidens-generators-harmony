@@ -4,12 +4,16 @@ import eu.claudius.iacob.music.knowledge.harmony.Intervals;
 
 import ro.ciacob.maidens.generators.constants.pitch.IntervalsSize;
 import ro.ciacob.maidens.generators.core.abstracts.AbstractContentAnalyzer;
+import ro.ciacob.maidens.generators.core.helpers.CommonMusicUtils;
+import ro.ciacob.maidens.generators.core.helpers.CommonMusicUtils;
+import ro.ciacob.maidens.generators.core.helpers.IntervalRegistryEntry;
 import ro.ciacob.maidens.generators.core.interfaces.IAnalysisContext;
 import ro.ciacob.maidens.generators.core.interfaces.IMusicPitch;
 import ro.ciacob.maidens.generators.core.interfaces.IMusicRequest;
 import ro.ciacob.maidens.generators.core.interfaces.IMusicUnit;
 import ro.ciacob.maidens.generators.core.interfaces.IMusicalContentAnalyzer;
 import ro.ciacob.maidens.generators.core.interfaces.IParametersList;
+import ro.ciacob.maidens.generators.harmony.constants.ParameterCommons;
 import ro.ciacob.maidens.generators.harmony.constants.ParameterNames;
 
 /**
@@ -19,28 +23,11 @@ import ro.ciacob.maidens.generators.harmony.constants.ParameterNames;
 public class IntrinsicConsonance extends AbstractContentAnalyzer implements IMusicalContentAnalyzer {
 
     private static const MIN_LEGAL_SCORE:int = 1;
-    private static const TRIADS_WITH_ROOT_IN_BASS_SCORE:Number = 100;
-    private static const TRIADS_WITH_ROOT_UPPER_SCORE:Number = 90;
-    private static const ADDED_NOTES_CHORDS_ROOT_IN_BASS_SCORE:Number = 80;
-    private static const ADDED_NOTES_CHORDS_ROOT_UPPER_SCORE:Number = 70;
-    private static const AUGMENTED_OR_QUARTAL_SCORE:Number = 60;
-    private static const DIMINISHED_SCORE:Number = 55;
-    private static const DOMINANT_TRIAD_SCORE:Number = 50;
-    private static const DOMINANT_INVERSIONS_ROOT_IN_BASS_SCORE:Number = 40;
-    private static const DOMINANT_INVERSIONS_ROOT_UPPER_SCORE:Number = 30;
-    private static const DOMINANT_NINTH_SCORE:Number = 20;
-    private static const CLUSTERS_ROOT_IN_BASS_SCORE:Number = 10;
-    private static const CLUSTERS_ROOT_UPPER_SCORE:Number = 0;
-
-    private var _allIntervalsRegistry:Array;
+    private var _allIntervalsRegistry:Vector.<IntervalRegistryEntry>;
     private var _allIntervalsCache:Array;
     private var _adjacentIntervalsCache:Array;
-    private var _simpleIntervals:Array;
     private var _adjacentIntervals:Array;
-    private var _pitches:Vector.<IMusicPitch>;
-    private var _numPitches:int;
     private var _lowestPitchInChord:int;
-    private var _hasUpperRoot:Boolean;
 
     /**
      * @constructor
@@ -53,7 +40,7 @@ public class IntrinsicConsonance extends AbstractContentAnalyzer implements IMus
      * @see IMusicalContentAnalyzer.weight
      */
     override public function get weight():Number {
-        return 0.99;
+        return 0.89;
     }
 
     /**
@@ -72,14 +59,20 @@ public class IntrinsicConsonance extends AbstractContentAnalyzer implements IMus
                                      parameters:IParametersList, request:IMusicRequest):void {
 
         // Collect and sort all intervals found in the current chord (IMusicUnit instance)
-        _allIntervalsRegistry = [];
+        _allIntervalsRegistry = new Vector.<IntervalRegistryEntry>;
         _allIntervalsCache = [];
-        _simpleIntervals = [];
+        var _simpleIntervals:Array = [];
         _adjacentIntervals = [];
         _lowestPitchInChord = int.MAX_VALUE;
-        _hasUpperRoot = false;
-        _pitches = targetMusicUnit.pitches;
-        _numPitches = _pitches.length;
+        var _pitches:Vector.<IMusicPitch> = CommonMusicUtils.getRealPitches(targetMusicUnit.pitches);
+        var _numPitches:int = _pitches.length;
+
+        // Exit with illegal score if there are less than two playing voices (as it takes at least two voices to
+        // "make harmony").
+        if (_numPitches < 2) {
+            targetMusicUnit.analysisScores.add(ParameterNames.INTRINSIC_CONSONANCE, ParameterCommons.NA_RESERVED_VALUE);
+            return;
+        }
         for (var i:int = 0; i < _numPitches; i++) {
             var currentPitch:IMusicPitch = _pitches[i];
             var currMidiNote:int = currentPitch.midiNote;
@@ -106,9 +99,6 @@ public class IntrinsicConsonance extends AbstractContentAnalyzer implements IMus
         var score:Number = (_computeScore(_simpleIntervals));
         score = Math.max(MIN_LEGAL_SCORE, score);
         targetMusicUnit.analysisScores.add(ParameterNames.INTRINSIC_CONSONANCE, score);
-        //[DEBUG]
-        //targetMusicUnit.analysisScores.add('is_root_upper', _hasUpperRoot ? 1 : 0);
-        //[/DEBUG]
     }
 
     /**
@@ -119,17 +109,17 @@ public class IntrinsicConsonance extends AbstractContentAnalyzer implements IMus
 
         // Augmented and quartal chords in root position
         if (_isAugmentedChord() || _isQuartalChord()) {
-            return AUGMENTED_OR_QUARTAL_SCORE;
+            return CommonMusicUtils.AUGMENTED_OR_QUARTAL_SCORE;
         }
 
         // Diminished chords in any inversion, including diminished seventh chords
         if (_isDiminishedChord()) {
-            return DIMINISHED_SCORE;
+            return CommonMusicUtils.DIMINISHED_SCORE;
         }
 
         // Chords with no tritone
-        var hasAnySeconds : Boolean;
-        var hasAnySevenths : Boolean;
+        var hasAnySeconds:Boolean;
+        var hasAnySevenths:Boolean;
         if (!_hasAnyTritone(intervals)) {
 
             // Chords with no seconds, nor sevenths of any kind
@@ -137,18 +127,18 @@ public class IntrinsicConsonance extends AbstractContentAnalyzer implements IMus
             hasAnySevenths = (_hasAnyMinorSeventh(intervals) || _hasAnyMajorSeventh(intervals));
             if (!hasAnySeconds && !hasAnySevenths) {
                 if (_hasRootUpperInChord()) {
-                    return TRIADS_WITH_ROOT_UPPER_SCORE;
+                    return CommonMusicUtils.TRIADS_WITH_ROOT_UPPER_SCORE;
                 } else {
-                    return TRIADS_WITH_ROOT_IN_BASS_SCORE;
+                    return CommonMusicUtils.TRIADS_WITH_ROOT_IN_BASS_SCORE;
                 }
             }
 
             // Chords with some seconds, or some sevenths, or both (but no tritones)
             else {
                 if (_hasRootUpperInChord()) {
-                    return ADDED_NOTES_CHORDS_ROOT_UPPER_SCORE;
+                    return CommonMusicUtils.ADDED_NOTES_CHORDS_ROOT_UPPER_SCORE;
                 } else {
-                    return ADDED_NOTES_CHORDS_ROOT_IN_BASS_SCORE;
+                    return CommonMusicUtils.ADDED_NOTES_CHORDS_ROOT_IN_BASS_SCORE;
                 }
             }
         }
@@ -161,7 +151,7 @@ public class IntrinsicConsonance extends AbstractContentAnalyzer implements IMus
             hasAnySeconds = (_hasAnyMinorSecond(intervals) || _hasAnyMajorSecond(intervals));
             if (_hasSingleTritone(intervals) && !hasAnySeconds &&
                     !_hasAnyMajorSeventh(intervals) && _hasAnyMinorSeventh(intervals)) {
-                return DOMINANT_TRIAD_SCORE;
+                return CommonMusicUtils.DOMINANT_TRIAD_SCORE;
             }
 
             // Chords that have a single tritone, no minor seconds, no major sevenths and either
@@ -171,9 +161,9 @@ public class IntrinsicConsonance extends AbstractContentAnalyzer implements IMus
                     !_hasAnyMajorSeventh(intervals) &&
                     (_hasAnyMajorSecond(intervals) || _hasAnyMinorSeventh(intervals))) {
                 if (_hasRootUpperInChord()) {
-                    return DOMINANT_INVERSIONS_ROOT_UPPER_SCORE;
+                    return CommonMusicUtils.DOMINANT_INVERSIONS_ROOT_UPPER_SCORE;
                 } else {
-                    return DOMINANT_INVERSIONS_ROOT_IN_BASS_SCORE;
+                    return CommonMusicUtils.DOMINANT_INVERSIONS_ROOT_IN_BASS_SCORE;
                 }
             }
 
@@ -182,16 +172,16 @@ public class IntrinsicConsonance extends AbstractContentAnalyzer implements IMus
             if (_hasMultipleTritones(intervals) && !_hasAnyMinorSecond(intervals) &&
                     !_hasAnyMajorSeventh(intervals) &&
                     (_hasAnyMajorSecond(intervals) || _hasAnyMinorSeventh(intervals))) {
-                    return DOMINANT_NINTH_SCORE;
+                return CommonMusicUtils.DOMINANT_NINTH_SCORE;
             }
 
             // Chords that have one or more tritones and either minor seconds, major sevenths, or
             // both (typically clusters).
             if (_hasAnyMinorSecond(intervals) || _hasAnyMajorSeventh(intervals)) {
                 if (_hasRootUpperInChord()) {
-                    return CLUSTERS_ROOT_UPPER_SCORE;
+                    return CommonMusicUtils.CLUSTERS_ROOT_UPPER_SCORE;
                 } else {
-                    return CLUSTERS_ROOT_IN_BASS_SCORE;
+                    return CommonMusicUtils.CLUSTERS_ROOT_IN_BASS_SCORE;
                 }
             }
         }
@@ -262,8 +252,7 @@ public class IntrinsicConsonance extends AbstractContentAnalyzer implements IMus
     private function _hasRootUpperInChord():Boolean {
         _allIntervalsRegistry.sort(Intervals.orderByHindemith2ndSeries);
         var mostSignificantInterval:IntervalRegistryEntry = _allIntervalsRegistry[0];
-        _hasUpperRoot = (mostSignificantInterval.root != _lowestPitchInChord);
-        return _hasUpperRoot;
+        return (mostSignificantInterval.root != _lowestPitchInChord);
     }
 
     /**

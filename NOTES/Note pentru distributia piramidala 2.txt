@@ -1,0 +1,43 @@
+(1) Se va folosi formula de calcul a numerelor triunghiulare pentru a se stabili distributia piramidala ideala (in numar de semitonuri) a unui acord alcatuit din N sunete.
+
+(2) Se va folosi acelasi principiu pentru a se stabili distributia piramidala inversata (cel mai rau caz posibil).
+
+(3) Se va calcula scorul pentru acordul gasit la (1) si se va considera scorul maxim posibil; se va calcula scorul gasit la (2) si se va considera scorul minim posibil.
+
+(4) avand un scor maxim si unul minim, orice scor arbitrar obtinut va putea fi rescris ca un procent.
+
+----
+Formula de calcul a numerelor triunghiulare este:
+Rule: T[n] = n(n+1)/2
+
+Un acord de N sunete va avea (N-1) intervale armonice in componenta sa. Acestea, pentru cazul ideal, vor avea dimensiunile aferente valorilor T[1] - T[N-1]. Pentru distributia piramidala ideala, intervalele se pun unul sub altul; pentru piramida inversata, intervalele se pun unul deasupra altuia.
+
+Pentru 4 voci, scorul maxim astfel calculat este 5; scorul minim astfel calculat este -5.
+
+----
+Daca piramida este deformata (peretii nu sunt "drepti"), putem obtine, in realitate, scoruri mai mari sau mai mici decat scorul maxim, respectiv minim. In aceasta situatie avem obtiunea de a considera maximul, respectiv, minimul legal, sau de a "penaliza" structura pentru diformitate.
+
+O posibila procedura de penalizare ar fi:
+([scor maxim canonic] / [scor maxim depasit]) * [scor maxim canonic]
+
+Formula se poate aplica fara modificari si in domeniul negativ.
+
+De exemplu, un acord, la-sol-do-mib2 (avand deci intervalele, dinspre bas spre acut, 10-5-3) va obtine scorul "7", care este mai mare decat scorul canonic maxim "5".
+Aplicand penalitatea, obtinem ca scorul lui real este:
+[5 / 7] * 5 ~= 0.72 * 5 ~= 3.6 (aprox. 86% daca exprimam scorurile procentual).
+
+----
+Este nefericit ca un trison major sau minor in 6:4 (rasturnarea a doua) nu obtine scorul maxim dupa acest procedeu. TOTUSI, dispozitia sunetelor intr-un astfel de trison nu este propriu-zis piramidala (este, mai degraba, trapezoidala, pentru ca piramidei "ii lipseste varful").
+
+
+================
+putem gasi alt model de calcul a acordului ideal, augmentand nu numarul de semitonuri ci intervalul muzical:
+3 sunete: terta(3) + cvarta(4)
+4 sunete: terta(3) + cvarta(4) + cvinta(5)
+5 sunete: terta(3) + cvarta(5) + cvinta(5) + sexta(6)
+6 sunete: terta(3) + cvarta(5) + cvinta(5) + sexta(6) + septima(7)
+...etc.
+
+Modelul are avantajul ca favorizeaza sonoritatile trisonice in pozitie larga. In loc sa se mai lucreze cu semitonuri, se poate lucra cu tipologii de intervale (doar cantitatea intervalului este folosita mai sus). Se poate insa lucra si cu semitonuri. Calculul de mai sus poate fi folosit doar pentru stabilirea scorurilor maxime si minime.
+
+Pentru a minimiza situatiile in care acorduri cu distributie valida obtin scoruri mai mari decat scorul maxim canonic (si trebuie penalizate), se poate face o aliniere, scazand sau adunand semitonuri in FIECARE interval armonic, astfel incat intervalul CEL MAI MIC din acor sa fie o terta (Asa cum este si in modelul de calcul al valorii maxime de mai sus)
